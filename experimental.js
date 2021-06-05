@@ -7,7 +7,7 @@ function biff(fizz) {
   }
 
   biff();
-  
+
   return foo; 
 }
 `);
@@ -15,7 +15,14 @@ function biff(fizz) {
 console.log({ shouldSucceeed: shouldSucceeed + '' });
 
 const shouldFail = require('./pure-function').default(`
-function biff(fizz) { const foo = fizz; while(false){let x = 5;} x = 99; return foo; }
+function biff(fizz) {
+  const foo = fizz;
+  while(false){
+    let x = 5;
+  }
+  foo.constructor.constructor = 99;
+  x = 99; 
+  return foo; }
 `);
 
 console.log({ shouldFail: shouldFail + '' });
