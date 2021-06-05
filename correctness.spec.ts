@@ -25,7 +25,9 @@ describe('pure-function - correctness', () => {
       }
       g();
 
-      const h = c.j.length;
+      c.xyz = "100";
+      
+      const h = c.xyz.length;
 
       return f;
     }

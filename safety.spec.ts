@@ -60,3 +60,33 @@ describe('pure-function - safety', () => {
     }).toThrow();
   })
 })
+
+describe('pure-function - exploit attempts', () => {
+  const disallowedValue = (global as any).disallowedValue = {};
+
+  testDangerousFunction('function () { return disallowedValue; }', disallowedValue);
+  testDangerousFunction('function () { return ({}).constructor }', Object);
+
+  testDangerousFunction(`function () {
+    const exploit = new Function("return disallowedValue");
+
+    return exploit();
+  }`, disallowedValue);
+  testDangerousFunction(`function () {
+    for (let Function = 1; Function < 1; Function++) {}
+
+    return (new Function("return disallowedValue"))();
+  }`, disallowedValue);
+})
+
+function testDangerousFunction(fn: string, unguardedValue) {
+  it('should stop: ' + fn + '', () => {
+    const compiled = eval("(() => { return " + fn + " })()")
+    const result = compiled();
+
+    expect(result).toBe(unguardedValue);
+    expect(() => {
+      pureFn(fn);
+    }).toThrow();
+  })
+}

@@ -1,4 +1,4 @@
-import { Literal, StringLiteral } from "@babel/types";
+import { ForStatement, Literal, StringLiteral } from "@babel/types";
 import {
   BindingElement,
   ComputedPropertyName,
@@ -6,6 +6,7 @@ import {
   Declaration,
   ElementAccessExpression,
   forEachChild,
+  ForInOrOfStatement,
   Identifier,
   Node,
   ObjectBindingPattern,
@@ -60,8 +61,9 @@ export default function pureFn(source: string) {
       | "propertyAssignment"
       | "propertyAccess" = "none"
   ) {
+    const nodeKind = node.kind;
     scope.stack.push(
-      Object.keys(SyntaxKind).find((key) => SyntaxKind[key] == node.kind)
+      getNodeName(nodeKind)
     );
 
     switch (node.kind) {
@@ -89,8 +91,6 @@ export default function pureFn(source: string) {
       }
       case SyntaxKind.PropertyAccessExpression: {
         const access = node as PropertyAccessExpression;
-
-        console.log(access.name);
 
         access.forEachChild((node) => {
           if (node == access.name) {
@@ -146,9 +146,11 @@ export default function pureFn(source: string) {
         });
         break;
       }
-      case SyntaxKind.StringLiteral: {
-        console.log(context);
-        console.log("string literal:", node.getText(sourceFile), scope.stack);
+      case SyntaxKind.ForStatement: {
+        const forstatement = node as ForInOrOfStatement;
+        const childScope = scope.newScope();
+        
+        forstatement.forEachChild(node => visit(node, childScope));
         break;
       }
       case SyntaxKind.ThisKeyword: {
@@ -160,7 +162,6 @@ export default function pureFn(source: string) {
 
         if (access.argumentExpression.kind === SyntaxKind.StringLiteral) {
           const name = access.argumentExpression as StringLiteralLike;
-          console.log("x", name);
           checkPropertyAccess(name.text, node, scope);
         } else {
           report(
@@ -222,7 +223,6 @@ export default function pureFn(source: string) {
     node: Node,
     scope: Scope
   ) {
-    console.log(identifierName);
     if (
       Object.getOwnPropertyNames(Object.prototype).some(
         (key) => key == identifierName
@@ -258,3 +258,7 @@ export default function pureFn(source: string) {
 
   return eval("(() => { return " + transpile(source) + " })()");
 }
+function getNodeName(nodeKind: SyntaxKind): string {
+  return Object.keys(SyntaxKind).find((key) => SyntaxKind[key] == nodeKind);
+}
+
