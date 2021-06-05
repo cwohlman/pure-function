@@ -49,4 +49,14 @@ describe('pure-function - safety', () => {
       pureFn('function () { (() => {}).prototype.apply(function () { return this; }) } ');
     }).toThrow();
   })
+  it('should not allow string access to dangerous members', () => {
+    expect(() => {
+      pureFn('function () { return new (() => {})["constructor"]("return window") } ');
+    }).toThrow();
+  })
+  it('should not allow dynamic member access', () => {
+    expect(() => {
+      pureFn('function (a) { return new (() => {})[a]("return window") } ');
+    }).toThrow();
+  })
 })

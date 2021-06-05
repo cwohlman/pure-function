@@ -1,8 +1,10 @@
 import { Literal, StringLiteral } from "@babel/types";
 import {
   BindingElement,
+  ComputedPropertyName,
   createSourceFile,
   Declaration,
+  ElementAccessExpression,
   forEachChild,
   Identifier,
   Node,
@@ -11,7 +13,10 @@ import {
   PropertyAccessExpression,
   PropertyAssignment,
   ScriptTarget,
+  StringLiteralLike,
+  StringLiteralType,
   SyntaxKind,
+  Token,
   transpile,
   transpileModule,
   VariableDeclaration,
@@ -141,8 +146,53 @@ export default function pureFn(source: string) {
         });
         break;
       }
+      case SyntaxKind.StringLiteral: {
+        console.log(context);
+        console.log("string literal:", node.getText(sourceFile), scope.stack);
+        break;
+      }
       case SyntaxKind.ThisKeyword: {
         report(node, "You may not use this!", scope);
+        break;
+      }
+      case SyntaxKind.ElementAccessExpression: {
+        const access = node as ElementAccessExpression;
+
+        if (access.argumentExpression.kind === SyntaxKind.StringLiteral) {
+          const name = access.argumentExpression as StringLiteralLike;
+          console.log("x", name);
+          checkPropertyAccess(name.text, node, scope);
+        } else {
+          report(
+            node,
+            "Non-static element access is not allowed: use Map or Set for dictionaries & lists",
+            scope
+          );
+        }
+
+        access.forEachChild((node) => {
+          if (node == access.argumentExpression) {
+            visit(node, scope, "propertyAccess");
+          } else {
+            visit(node, scope, context);
+          }
+        });
+
+        break;
+      }
+      case SyntaxKind.ComputedPropertyName: {
+        const name = node as ComputedPropertyName;
+
+        if (name.expression.kind === SyntaxKind.StringLiteral) {
+          checkPropertyAccess((name.expression as any).text, node, scope);
+        } else {
+          report(
+            node,
+            "Non-static computed property names are not allowed",
+            scope
+          );
+        }
+
         break;
       }
       case SyntaxKind.Identifier: {
@@ -154,10 +204,7 @@ export default function pureFn(source: string) {
           // ok here to use identifier
         } else if (context === "propertyAccess") {
           const identifierName = identifier.text;
-          console.log('propertyAccess', identifierName)
-          if (Object.getOwnPropertyNames(Object.prototype).some(key => key == identifierName)) {
-            report(node, "Invalid use of Object.prototype property in property access.", scope);
-          }
+          checkPropertyAccess(identifierName, node, scope);
         } else if (!scope.hasVariable(identifier.text)) {
           report(node, "Identifier not in scope: " + identifier.text, scope);
         }
@@ -168,6 +215,25 @@ export default function pureFn(source: string) {
       }
     }
     scope.stack.pop();
+  }
+
+  function checkPropertyAccess(
+    identifierName: string,
+    node: Node,
+    scope: Scope
+  ) {
+    console.log(identifierName);
+    if (
+      Object.getOwnPropertyNames(Object.prototype).some(
+        (key) => key == identifierName
+      )
+    ) {
+      report(
+        node,
+        "Invalid use of Object.prototype property in property access.",
+        scope
+      );
+    }
   }
 
   function report(node: Node, message: string, scope) {
