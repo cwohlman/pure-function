@@ -77,6 +77,29 @@ describe('pure-function - exploit attempts', () => {
 
     return (new Function("return disallowedValue"))();
   }`, disallowedValue);
+
+  testDangerousFunction(`function () {
+    const foo = [];
+
+    for (let Function of foo) {}
+
+    return (new Function("return disallowedValue"))();
+  }`, disallowedValue);
+
+  testDangerousFunction(`function () {
+    const foo = [];
+
+    for (let Function in foo) {}
+
+    return (new Function("return disallowedValue"))();
+  }`, disallowedValue);
+
+  // Fails to exploit
+  // testDangerousFunction(`function () {
+  //   while (let Function = true) { break; }
+
+  //   return (new Function("return disallowedValue"))();
+  // }`, disallowedValue);
 })
 
 function testDangerousFunction(fn: string, unguardedValue) {

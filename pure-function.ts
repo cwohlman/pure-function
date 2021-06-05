@@ -62,9 +62,7 @@ export default function pureFn(source: string) {
       | "propertyAccess" = "none"
   ) {
     const nodeKind = node.kind;
-    scope.stack.push(
-      getNodeName(nodeKind)
-    );
+    scope.stack.push(getNodeName(nodeKind));
 
     switch (node.kind) {
       case SyntaxKind.BindingElement: {
@@ -146,11 +144,11 @@ export default function pureFn(source: string) {
         });
         break;
       }
+      case SyntaxKind.ForInStatement:
+      case SyntaxKind.ForOfStatement:
       case SyntaxKind.ForStatement: {
-        const forstatement = node as ForInOrOfStatement;
         const childScope = scope.newScope();
-        
-        forstatement.forEachChild(node => visit(node, childScope));
+        node.forEachChild((node) => visit(node, childScope));
         break;
       }
       case SyntaxKind.ThisKeyword: {
@@ -212,6 +210,7 @@ export default function pureFn(source: string) {
         break;
       }
       default: {
+        console.log(getNodeName(nodeKind));
         forEachChild(node, (node) => visit(node, scope));
       }
     }
@@ -261,4 +260,3 @@ export default function pureFn(source: string) {
 function getNodeName(nodeKind: SyntaxKind): string {
   return Object.keys(SyntaxKind).find((key) => SyntaxKind[key] == nodeKind);
 }
-
