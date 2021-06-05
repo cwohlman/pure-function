@@ -8,7 +8,7 @@ describe('pure-function - correctness', () => {
   })
   it('should support advanced features', () => {
     const result = pureFn(`
-    function veryComplexFunction({ a, b } = { a: 100, b: 100 }, c) {
+    function veryComplexFunction({ z: a, b } = { z: 100, b: 100 }, c = { j: 100 }) {
       const d = a + b;
       let f;
       while(true) {
@@ -19,11 +19,13 @@ describe('pure-function - correctness', () => {
       for (let i = 0; i <= 1; i++) {
         f += i;
       }
-      c = () => {
+      const g = () => {
         let r = 99;
         f += r;
       }
-      c();
+      g();
+
+      const h = c.j.length;
 
       return f;
     }

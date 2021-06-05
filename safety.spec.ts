@@ -29,4 +29,14 @@ describe('pure-function - safety', () => {
       pureFn('function ({ a } = a) { return a } ');
     }).toThrow();
   })
+  it('should not allow binding elements to access themselves', () => {
+    expect(() => {
+      pureFn('function ({ a } = a) { return a } ');
+    }).toThrow();
+  })
+  it('should allow object assignment to imply variable existance', () => {
+    expect(() => {
+      pureFn('function (a = { j: 100 }) { return j } ');
+    }).toThrow();
+  })
 })
