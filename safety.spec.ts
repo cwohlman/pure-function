@@ -94,6 +94,30 @@ describe('pure-function - exploit attempts', () => {
     return (new Function("return disallowedValue"))();
   }`, disallowedValue);
 
+  // does not exploit.
+  // testDangerousFunction(`function () {
+  //   const Function = 1;
+
+  //   delete Function;
+
+  //   return (new Function("return disallowedValue"))();
+  // }`, disallowedValue);
+
+
+  testDangerousFunction(`function () {
+    const foo = [];
+
+    switch (foo) {
+      case false: {
+        const Function = 1;
+      }
+    }
+
+    return (new Function("return disallowedValue"))();
+  }`, disallowedValue);
+
+  testDangerousFunction(`new Function("return disallowedValue")`, disallowedValue)
+
   // Fails to exploit
   // testDangerousFunction(`function () {
   //   while (let Function = true) { break; }

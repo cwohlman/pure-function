@@ -210,7 +210,7 @@ export default function pureFn(source: string) {
         break;
       }
       default: {
-        console.log(getNodeName(nodeKind));
+        // console.log(getNodeName(nodeKind));
         forEachChild(node, (node) => visit(node, scope));
       }
     }
@@ -222,12 +222,23 @@ export default function pureFn(source: string) {
     node: Node,
     scope: Scope
   ) {
+    // Whitelist
+    if (["keys", "values", "pairs"].indexOf(identifierName) !== -1) return;
+
+    // Blacklist
+    if ([].indexOf(identifierName) !== -1) return report(
+      node,
+      "Invalid use of blacklisted property in property access.",
+      scope
+    );
+
+    // Object properties
     if (
       Object.getOwnPropertyNames(Object.prototype).some(
-        (key) => key == identifierName
+        (key) => key == identifierName && key !== "keys"
       )
     ) {
-      report(
+      return report(
         node,
         "Invalid use of Object.prototype property in property access.",
         scope
@@ -246,13 +257,24 @@ export default function pureFn(source: string) {
         };
       }
     })();
+    const text = (() => {
+      return node.getText(sourceFile)
+    })()
     throw new Error(
-      `Not allowed: (${line + 1},${
+      `Not allowed: ${text} (${line + 1},${
         character + 1
       }): ${message} at ${scope.stack.join(">")}`
     );
   }
 
+  // TODO: maybe allow Math, Date, Map, Set, JSON, & other safe globals.
+  // since property access is strictly controlled, it should be very difficult to
+  // break out
+  // Note: because the this keyword is not allowed, class methods will be pretty useless.
+  // Note: because dynamic property access is not allowed you actually can't operate on array elements!
+  //       you have to use .forEach, .map, etc.
+  //       potential fix for this is to provide an alternate List that's just an array substitute
+  //       Set isn't a substitute for Array because you can't access elements by index using Set either.
   visit(sourceFile, new Scope());
 
   return eval("(() => { return " + transpile(source) + " })()");
