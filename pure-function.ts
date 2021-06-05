@@ -44,6 +44,43 @@ class Scope {
   }
 }
 
+export function isAllowedKey(key: string): true | string {
+  // Whitelist
+  if (["keys", "values", "pairs"].indexOf(key) !== -1) return true;
+
+  // Blacklist
+  if ([].indexOf(key) !== -1)
+    return `Invalid use of blacklisted property (${key}) in property access.`;
+
+  // Object properties
+  if (
+    Object.getOwnPropertyNames(Object.prototype).some(
+      (protoKey) => protoKey == key
+    )
+  ) {
+    return `Invalid use of Object.prototype property (${key}) in property access.`;
+  }
+
+  //  All other properties are allowed
+  return true;
+}
+function dynamicCheckKey(key: string) {
+  const message = isAllowedKey(key);
+
+  if (message !== true) throw new Error(message);
+}
+export function $get(object, key) {
+  dynamicCheckKey(key);
+  return object[key];
+}
+export function $set(object, key, value) {
+  dynamicCheckKey(key);
+  return (object[key] = value);
+}
+export function $clear(object, key) {
+  dynamicCheckKey(key);
+  delete object[key];
+}
 export default function pureFn(source: string) {
   const sourceFile = createSourceFile(
     "subject.ts",
@@ -160,7 +197,7 @@ export default function pureFn(source: string) {
 
         if (access.argumentExpression.kind === SyntaxKind.StringLiteral) {
           const name = access.argumentExpression as StringLiteralLike;
-          checkPropertyAccess(name.text, node, scope);
+          staticCheckKey(name.text, node, scope);
         } else {
           report(
             node,
@@ -183,7 +220,7 @@ export default function pureFn(source: string) {
         const name = node as ComputedPropertyName;
 
         if (name.expression.kind === SyntaxKind.StringLiteral) {
-          checkPropertyAccess((name.expression as any).text, node, scope);
+          staticCheckKey((name.expression as any).text, node, scope);
         } else {
           report(
             node,
@@ -203,7 +240,7 @@ export default function pureFn(source: string) {
           // ok here to use identifier
         } else if (context === "propertyAccess") {
           const identifierName = identifier.text;
-          checkPropertyAccess(identifierName, node, scope);
+          staticCheckKey(identifierName, node, scope);
         } else if (!scope.hasVariable(identifier.text)) {
           report(node, "Identifier not in scope: " + identifier.text, scope);
         }
@@ -217,33 +254,12 @@ export default function pureFn(source: string) {
     scope.stack.pop();
   }
 
-  function checkPropertyAccess(
-    identifierName: string,
-    node: Node,
-    scope: Scope
-  ) {
-    // Whitelist
-    if (["keys", "values", "pairs"].indexOf(identifierName) !== -1) return;
 
-    // Blacklist
-    if ([].indexOf(identifierName) !== -1) return report(
-      node,
-      "Invalid use of blacklisted property in property access.",
-      scope
-    );
 
-    // Object properties
-    if (
-      Object.getOwnPropertyNames(Object.prototype).some(
-        (key) => key == identifierName && key !== "keys"
-      )
-    ) {
-      return report(
-        node,
-        "Invalid use of Object.prototype property in property access.",
-        scope
-      );
-    }
+  function staticCheckKey(identifierName: string, node: Node, scope: Scope) {
+    const message = isAllowedKey(identifierName);
+
+    if (message !== true) report(node, message, scope);
   }
 
   function report(node: Node, message: string, scope) {
@@ -258,8 +274,8 @@ export default function pureFn(source: string) {
       }
     })();
     const text = (() => {
-      return node.getText(sourceFile)
-    })()
+      return node.getText(sourceFile);
+    })();
     throw new Error(
       `Not allowed: ${text} (${line + 1},${
         character + 1
@@ -267,18 +283,26 @@ export default function pureFn(source: string) {
     );
   }
 
-  // TODO: maybe allow Math, Date, Map, Set, JSON, & other safe globals.
-  // since property access is strictly controlled, it should be very difficult to
-  // break out
   // Note: because the this keyword is not allowed, class methods will be pretty useless.
-  // Note: because dynamic property access is not allowed you actually can't operate on array elements!
-  //       you have to use .forEach, .map, etc.
-  //       potential fix for this is to provide an alternate List that's just an array substitute
-  //       Set isn't a substitute for Array because you can't access elements by index using Set either.
-  visit(sourceFile, new Scope());
+  // Note: we could automate the use of $get, $set, $clear, etc.
+  
+  const globalScope = new Scope();
+
+  // Whitelist:
+  globalScope.addVariable("$get")
+  globalScope.addVariable("$set")
+  globalScope.addVariable("$clear")
+  globalScope.addVariable("Math")
+  globalScope.addVariable("Date")
+  globalScope.addVariable("Map")
+  globalScope.addVariable("Set")
+  globalScope.addVariable("JSON")
+
+  visit(sourceFile, globalScope);
 
   return eval("(() => { return " + transpile(source) + " })()");
 }
+
 function getNodeName(nodeKind: SyntaxKind): string {
   return Object.keys(SyntaxKind).find((key) => SyntaxKind[key] == nodeKind);
 }
