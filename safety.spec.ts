@@ -34,9 +34,19 @@ describe('pure-function - safety', () => {
       pureFn('function ({ a } = a) { return a } ');
     }).toThrow();
   })
-  it('should allow object assignment to imply variable existance', () => {
+  it('should not allow object assignment to imply variable existance', () => {
     expect(() => {
       pureFn('function (a = { j: 100 }) { return j } ');
+    }).toThrow();
+  })
+  it('should not allow access of dangerous object.proptotype memebers', () => {
+    expect(() => {
+      pureFn('function (a = { j: 100 }) { return a.constructor; } ');
+    }).toThrow();
+  })
+  it('should not allow access to function prototype', () => {
+    expect(() => {
+      pureFn('function () { (() => {}).prototype.apply(function () { return this; }) } ');
     }).toThrow();
   })
 })

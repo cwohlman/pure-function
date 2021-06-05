@@ -1,3 +1,4 @@
+import { Literal, StringLiteral } from "@babel/types";
 import {
   BindingElement,
   createSourceFile,
@@ -84,6 +85,8 @@ export default function pureFn(source: string) {
       case SyntaxKind.PropertyAccessExpression: {
         const access = node as PropertyAccessExpression;
 
+        console.log(access.name);
+
         access.forEachChild((node) => {
           if (node == access.name) {
             visit(node, scope, "propertyAccess");
@@ -138,6 +141,10 @@ export default function pureFn(source: string) {
         });
         break;
       }
+      case SyntaxKind.ThisKeyword: {
+        report(node, "You may not use this!", scope);
+        break;
+      }
       case SyntaxKind.Identifier: {
         const identifier = node as Identifier;
 
@@ -146,8 +153,11 @@ export default function pureFn(source: string) {
         } else if (context === "propertyAssignment") {
           // ok here to use identifier
         } else if (context === "propertyAccess") {
-          // TODO: check for unsafe property access, e.g. constructor, prototype, etc.
-          // ok here to use identifier
+          const identifierName = identifier.text;
+          console.log('propertyAccess', identifierName)
+          if (Object.getOwnPropertyNames(Object.prototype).some(key => key == identifierName)) {
+            report(node, "Invalid use of Object.prototype property in property access.", scope);
+          }
         } else if (!scope.hasVariable(identifier.text)) {
           report(node, "Identifier not in scope: " + identifier.text, scope);
         }
