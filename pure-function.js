@@ -8,7 +8,8 @@ var Scope = /** @class */ (function () {
     }
     Scope.prototype.hasVariable = function (varname) {
         var _a;
-        return this.variables.some(function (v) { return v == varname; }) || ((_a = this.parentScope) === null || _a === void 0 ? void 0 : _a.hasVariable(varname));
+        return (this.variables.some(function (v) { return v == varname; }) ||
+            ((_a = this.parentScope) === null || _a === void 0 ? void 0 : _a.hasVariable(varname)));
     };
     Scope.prototype.addVariable = function (varname) {
         this.variables.push(varname);
@@ -21,7 +22,9 @@ var Scope = /** @class */ (function () {
 function pureFn(source) {
     var sourceFile = typescript_1.createSourceFile("subject.ts", source, typescript_1.ScriptTarget.ESNext, false);
     function visit(node, scope) {
-        console.log(Object.keys(typescript_1.SyntaxKind).find(function (key) { return typescript_1.SyntaxKind[key] == node.kind; }));
+        // console.log(
+        //   Object.keys(SyntaxKind).find((key) => SyntaxKind[key] == node.kind)
+        // );
         switch (node.kind) {
             case typescript_1.SyntaxKind.VariableDeclaration: {
                 var variable_1 = node;
@@ -31,6 +34,13 @@ function pureFn(source) {
                     if (node != variable_1.name) {
                         visit(node, scope);
                     }
+                });
+                break;
+            }
+            case typescript_1.SyntaxKind.Block: {
+                var childScope_1 = scope.newScope();
+                node.forEachChild(function (node) {
+                    visit(node, childScope_1);
                 });
                 break;
             }
@@ -49,10 +59,10 @@ function pureFn(source) {
                 var fn = node;
                 var functionName_1 = fn.name;
                 scope.addVariable(functionName_1.text);
-                var childScope_1 = scope.newScope();
+                var childScope_2 = scope.newScope();
                 fn.forEachChild(function (node) {
                     if (node != functionName_1) {
-                        visit(node, childScope_1);
+                        visit(node, childScope_2);
                     }
                 });
                 break;
@@ -70,7 +80,6 @@ function pureFn(source) {
         }
     }
     function report(node, message) {
-        console.log(node);
         var _a = (function () {
             try {
                 return sourceFile.getLineAndCharacterOfPosition(node.getStart());
@@ -88,4 +97,3 @@ function pureFn(source) {
     return typescript_1.transpile(source);
 }
 exports["default"] = pureFn;
-;

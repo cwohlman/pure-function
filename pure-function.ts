@@ -15,13 +15,14 @@ import {
 import { compileFunction } from "vm";
 
 class Scope {
-  constructor(
-    private parentScope?: Scope
-  ) {}
+  constructor(private parentScope?: Scope) {}
 
-  private variables: string[] = []
+  private variables: string[] = [];
   hasVariable(varname: string) {
-    return this.variables.some(v => v == varname) || this.parentScope?.hasVariable(varname);
+    return (
+      this.variables.some((v) => v == varname) ||
+      this.parentScope?.hasVariable(varname)
+    );
   }
   addVariable(varname: string) {
     this.variables.push(varname);
@@ -40,9 +41,9 @@ export default function pureFn(source: string) {
   );
 
   function visit(node: Node, scope: Scope) {
-    console.log(
-      Object.keys(SyntaxKind).find((key) => SyntaxKind[key] == node.kind)
-    );
+    // console.log(
+    //   Object.keys(SyntaxKind).find((key) => SyntaxKind[key] == node.kind)
+    // );
 
     switch (node.kind) {
       case SyntaxKind.VariableDeclaration: {
@@ -54,6 +55,13 @@ export default function pureFn(source: string) {
           if (node != variable.name) {
             visit(node, scope);
           }
+        });
+        break;
+      }
+      case SyntaxKind.Block: {
+        const childScope = scope.newScope();
+        node.forEachChild((node) => {
+          visit(node, childScope);
         });
         break;
       }
@@ -84,7 +92,7 @@ export default function pureFn(source: string) {
       }
       case SyntaxKind.Identifier: {
         const identifier = node as Identifier;
-        if (! scope.hasVariable(identifier.text)) {
+        if (!scope.hasVariable(identifier.text)) {
           report(node, "Identifier not in scope: " + identifier.text);
         }
         break;
@@ -96,8 +104,6 @@ export default function pureFn(source: string) {
   }
 
   function report(node: Node, message: string) {
-    console.log(node);
-
     const { line, character } = (() => {
       try {
         return sourceFile.getLineAndCharacterOfPosition(node.getStart());
@@ -114,4 +120,4 @@ export default function pureFn(source: string) {
   visit(sourceFile, new Scope());
 
   return transpile(source);
-};
+}
