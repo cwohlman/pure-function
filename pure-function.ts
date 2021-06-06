@@ -320,6 +320,8 @@ export default function pureFn(source: string) {
 
   return eval(
     `(() => {
+      // OOPS! this is outside the function declaration, successive calls to the function will not reset $$tick
+      
       let $$tick = 0;
       const $$mark = () => {
         $$tick++;
@@ -389,6 +391,8 @@ export default function pureFn(source: string) {
                     return visitEachChild(child, visit, context);
                   }, context)
                 }
+
+                // TODO: technically we don't have to protect against recursion in functions that can't be accessed from the outside
 
                 if (isFunctionDeclaration(node)) {
                   const body = node.body;
