@@ -338,12 +338,12 @@ export default function pureFn(source: string) {
               function visit<T extends Node>(node: T, isTopLevel?: boolean): T {
                 // console.log(!!node.parent, getNodeName(node.kind));
 
-                // Function calls can be recursive
+                // Function calls can be recursive - Note the runtime normally takes care of this for us.
                 // For loops can be infinite
                 // While loops can be infinite
                 // TODO: move locals/variables checking here, apparently function ast node already includes a list of locals & parameters
+                // TODO: probably don't allow recursion involving the top most function, instead you'd have to nest it.
 
-                // TODO: define a replace body helper function with pseudo code: (body) => [$$()].concat(body)
                 if (isForStatement(node)) {
                   const body = node.statement;
 
