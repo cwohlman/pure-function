@@ -1,4 +1,10 @@
-import { ForStatement, FunctionDeclaration, FunctionExpression, Literal, StringLiteral } from "@babel/types";
+import {
+  ForStatement,
+  FunctionDeclaration,
+  FunctionExpression,
+  Literal,
+  StringLiteral,
+} from "@babel/types";
 import {
   BindingElement,
   Block,
@@ -14,6 +20,7 @@ import {
   Identifier,
   isArrowFunction,
   isDoStatement,
+  isExpressionStatement,
   isForInStatement,
   isForOfStatement,
   isForStatement,
@@ -37,6 +44,7 @@ import {
   transpileModule,
   VariableDeclaration,
   visitEachChild,
+  Visitor,
 } from "typescript";
 
 class Scope {
@@ -309,6 +317,8 @@ export default function pureFn(source: string) {
   globalScope.addVariable("$get");
   globalScope.addVariable("$set");
   globalScope.addVariable("$clear");
+  // TODO: maybe disallow error & instead provide $throw()? this seems like a very small potential security issue, since error might contain properties like the stack that expose things
+  globalScope.addVariable("Error");
   globalScope.addVariable("RegExp");
   globalScope.addVariable("Math");
   globalScope.addVariable("Date");
@@ -320,21 +330,14 @@ export default function pureFn(source: string) {
 
   return eval(
     `(() => {
-      // OOPS! this is outside the function declaration, successive calls to the function will not reset $$tick
-      
-      let $$tick = 0;
-      const $$mark = () => {
-        $$tick++;
-        if ($$tick > 1000000) {
-          throw new Error('Excessive iterations!');
-        }
-      };
       return ` +
       transpileModule(source, {
         transformers: {
           before: [
             (context) => {
-              function visit<T extends Node>(node: T) {
+              function visit<T extends Node>(node: T, isTopLevel?: boolean): T {
+                // console.log(!!node.parent, getNodeName(node.kind));
+
                 // Function calls can be recursive
                 // For loops can be infinite
                 // While loops can be infinite
@@ -344,52 +347,74 @@ export default function pureFn(source: string) {
                 if (isForStatement(node)) {
                   const body = node.statement;
 
-                  return visitEachChild(node, (child) => {
-                    if (child == body) {
-                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
-                    }
-                    return visitEachChild(child, visit, context);
-                  }, context)
+                  return visitEachChild(
+                    node,
+                    (child) => {
+                      if (child == body) {
+                        return replaceNodeBody(child as Block, false, false, visit)
+                      }
+                      return visitEachChild(child, visit, context);
+                    },
+                    context
+                  );
                 }
                 if (isForInStatement(node)) {
                   const body = node.statement;
 
-                  return visitEachChild(node, (child) => {
-                    if (child == body) {
-                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
-                    }
-                    return visitEachChild(child, visit, context);
-                  }, context)
+                  return visitEachChild(
+                    node,
+                    (child) => {
+                      if (child == body) {
+                        return replaceNodeBody(child as Block, false, false, visit)
+                      }
+                      return visitEachChild(child, visit, context);
+                    },
+                    context
+                  );
                 }
                 if (isForOfStatement(node)) {
                   const body = node.statement;
 
-                  return visitEachChild(node, (child) => {
-                    if (child == body) {
-                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
-                    }
-                    return visitEachChild(child, visit, context);
-                  }, context)
+                  return visitEachChild(
+                    node,
+                    (child) => {
+                      if (child == body) {
+                        return replaceNodeBody(child as Block, false, false, visit)
+                          
+                      }
+                      return visitEachChild(child, visit, context);
+                    },
+                    context
+                  );
                 }
                 if (isWhileStatement(node)) {
                   const body = node.statement;
 
-                  return visitEachChild(node, (child) => {
-                    if (child == body) {
-                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
-                    }
-                    return visitEachChild(child, visit, context);
-                  }, context)
+                  return visitEachChild(
+                    node,
+                    (child) => {
+                      if (child == body) {
+                        return replaceNodeBody(child as Block, false, false, visit)
+                      }
+                      return visitEachChild(child, visit, context);
+                    },
+                    context
+                  );
                 }
                 if (isDoStatement(node)) {
                   const body = node.statement;
 
-                  return visitEachChild(node, (child) => {
-                    if (child == body) {
-                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
-                    }
-                    return visitEachChild(child, visit, context);
-                  }, context)
+                  return visitEachChild(
+                    node,
+                    (child) => {
+                      if (child == body) {
+                        return replaceNodeBody(child as Block, false, false, visit)
+                          
+                      }
+                      return visitEachChild(child, visit, context);
+                    },
+                    context
+                  );
                 }
 
                 // TODO: technically we don't have to protect against recursion in functions that can't be accessed from the outside
@@ -397,42 +422,108 @@ export default function pureFn(source: string) {
                 if (isFunctionDeclaration(node)) {
                   const body = node.body;
 
-                  return visitEachChild(node, (child) => {
-                    if (child == body) {
-                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
-                    }
-                    return visitEachChild(child, visit, context);
-                  }, context)
+                  return visitEachChild(
+                    node,
+                    (child) => {
+                      if (child == body) {
+                        return  replaceNodeBody(
+                            child as Block,
+                            true,
+                            isTopLevel,
+                            visit
+                          )
+                      }
+                      return visitEachChild(child, visit, context);
+                    },
+                    context
+                  );
                 }
                 if (isFunctionExpression(node)) {
                   const body = node.body;
 
-                  return visitEachChild(node, (child) => {
-                    if (child == body) {
-                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
-                    }
-                    return visitEachChild(child, visit, context);
-                  }, context)
+                  return visitEachChild(
+                    node,
+                    (child) => {
+                      if (child == body) {
+                          return replaceNodeBody(
+                            child as Block,
+                            true,
+                            isTopLevel,
+                            visit
+                          )
+                        
+                      }
+                      return visitEachChild(child, visit, context);
+                    },
+                    context
+                  );
                 }
                 if (isArrowFunction(node)) {
                   const body = node.body;
 
-                  return visitEachChild(node, (child) => {
-                    if (child == body) {
-                      return visitEachChild(replaceNodeBody(child as ConciseBody, true), visit, context);
-                    }
-                    return visitEachChild(child, visit, context);
-                  }, context)
+                  return visitEachChild(
+                    node,
+                    (child) => {
+                      if (child == body) {
+                        return replaceNodeBody(
+                            child as ConciseBody,
+                            true,
+                            isTopLevel,
+                            visit
+                          )
+                      }
+                      return visitEachChild(child, visit, context);
+                    },
+                    context
+                  );
                 }
                 // if (isFunctionLike(node)) {
                 //   const body = (node as SignatureDeclaration).
                 //   return replaceNodeBody()
                 // }
 
-                return visitEachChild(node, (child) => visit(child), context);
+                return visitEachChild(
+                  node,
+                  (child) => visit(child, isTopLevel),
+                  context
+                );
               }
               return (sourceFile) => {
-                return visit(sourceFile);
+                if (sourceFile.statements.length > 1) {
+                  throw new Error(
+                    `Input must contain a single statement (got ${sourceFile.statements.map(
+                      (s) => getNodeName(s.kind)
+                    )}).`
+                  );
+                }
+
+                const mainStatement = sourceFile.statements[0];
+                if (
+                  isExpressionStatement(mainStatement) &&
+                  [
+                    SyntaxKind.FunctionExpression,
+                    SyntaxKind.ArrowFunction,
+                  ].indexOf(mainStatement.expression.kind) === -1
+                ) {
+                  throw new Error(
+                    `Outer expression must be a function (got ${getNodeName(
+                      mainStatement.expression.kind
+                    )}).`
+                  );
+                }
+                if (
+                  !isExpressionStatement(mainStatement) &&
+                  [SyntaxKind.FunctionDeclaration].indexOf(
+                    mainStatement.kind
+                  ) === -1
+                ) {
+                  throw new Error(
+                    `Main statement must be a function (got ${getNodeName(
+                      mainStatement.kind
+                    )}).`
+                  );
+                }
+                return visit(sourceFile, true);
               };
             },
           ],
@@ -444,22 +535,87 @@ export default function pureFn(source: string) {
   // return (...args: any): any => {};
 }
 
-function replaceNodeBody(node: Expression | Block, shouldReturn: boolean): Block {
-  const check = factory.createExpressionStatement(factory.createCallExpression(factory.createIdentifier('$$mark'), [], []));
+function replaceNodeBody(
+  node: Expression | Block,
+  shouldReturn: boolean,
+  isTopLevel: boolean,
+  visit: <T extends Node>(node: T) => T
+): Block {
+  // Looks like the runtime actually takes care of infinite recursion for us, we may only need this for loops
+  const statements: Statement[] = isTopLevel
+    ? [
+        factory.createVariableStatement(
+          [],
+          [
+            factory.createVariableDeclaration(
+              "$$count",
+              undefined,
+              undefined,
+              factory.createNumericLiteral(0)
+            ),
+            factory.createVariableDeclaration(
+              "$$check",
+              undefined,
+              undefined,
+              factory.createFunctionExpression(
+                [],
+                undefined,
+                "$$check",
+                [],
+                [],
+                undefined,
+                factory.createBlock([
+                  factory.createExpressionStatement(
+                    factory.createAssignment(
+                      factory.createIdentifier("$$count"),
+                      factory.createAdd(
+                        factory.createIdentifier("$$count"),
+                        factory.createNumericLiteral(1)
+                      )
+                    )
+                  ),
+                  factory.createIfStatement(
+                    factory.createGreaterThan(
+                      factory.createIdentifier("$$count"),
+                      factory.createNumericLiteral(1_000_000)
+                    ),
+                    factory.createThrowStatement(
+                      factory.createNewExpression(
+                        factory.createIdentifier("Error"),
+                        [],
+                        [factory.createStringLiteral("Excessive iterations")]
+                      )
+                    )
+                  ),
+                ])
+              )
+            ),
+          ]
+        ),
+      ]
+    : [
+        factory.createExpressionStatement(
+          factory.createCallExpression(
+            factory.createIdentifier("$$check"),
+            [],
+            []
+          )
+        ),
+      ];
   if (node.kind === SyntaxKind.Block) {
     const block = node as Block;
     return factory.createBlock(
-      [check as Statement].concat(block.statements)
+      statements.concat(block.statements.map(visit).filter((a) => !!a))
     );
   } else if (shouldReturn) {
     const expression = node as Expression;
     return factory.createBlock(
-      [check as Statement].concat(factory.createReturnStatement(expression))
+      statements.concat(factory.createReturnStatement(visit(expression)))
     );
   } else {
     const expression = node as Expression;
     return factory.createBlock(
-      [check as Statement].concat(factory.createExpressionStatement(expression))
+      statements.concat(factory.createExpressionStatement(visit(expression)))
     );
   }
 }

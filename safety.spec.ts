@@ -66,6 +66,9 @@ describe('pure-function - safety', () => {
     expect(() => {
       pureFn('function (a) { while (true) { /* infinite loop */ } } ')();
     }).toThrow(/iterations/);
+    expect(() => {
+      pureFn('function a() { a() } ')();
+    }).toThrow();
   })
 })
 
