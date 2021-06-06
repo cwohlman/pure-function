@@ -59,6 +59,14 @@ describe('pure-function - safety', () => {
       pureFn('function (a) { return new (() => {})[a]("return window") } ');
     }).toThrow();
   })
+  it('should prevent infinite loops', () => {
+    expect(() => {
+      pureFn('function (a) { for(var a = 0; a >= 0; a++) { /* infinite loop */ } } ')();
+    }).toThrow(/iterations/);
+    expect(() => {
+      pureFn('function (a) { while (true) { /* infinite loop */ } } ')();
+    }).toThrow(/iterations/);
+  })
 })
 
 describe('pure-function - exploit attempts', () => {

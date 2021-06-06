@@ -1,19 +1,34 @@
-import { ForStatement, Literal, StringLiteral } from "@babel/types";
+import { ForStatement, FunctionDeclaration, FunctionExpression, Literal, StringLiteral } from "@babel/types";
 import {
   BindingElement,
+  Block,
   ComputedPropertyName,
+  ConciseBody,
   createSourceFile,
   Declaration,
   ElementAccessExpression,
+  Expression,
+  factory,
   forEachChild,
   ForInOrOfStatement,
   Identifier,
+  isArrowFunction,
+  isDoStatement,
+  isForInStatement,
+  isForOfStatement,
+  isForStatement,
+  isFunctionDeclaration,
+  isFunctionExpression,
+  isFunctionLike,
+  isWhileStatement,
   Node,
   ObjectBindingPattern,
   ParameterDeclaration,
   PropertyAccessExpression,
   PropertyAssignment,
   ScriptTarget,
+  SignatureDeclaration,
+  Statement,
   StringLiteralLike,
   StringLiteralType,
   SyntaxKind,
@@ -68,6 +83,9 @@ function dynamicCheckKey(key: string) {
   const message = isAllowedKey(key);
 
   if (message !== true) throw new Error(message);
+}
+export function $keys(object) {
+  return Object.keys(object).filter((key) => isAllowedKey(key) === true);
 }
 export function $get(object, key) {
   dynamicCheckKey(key);
@@ -254,8 +272,6 @@ export default function pureFn(source: string) {
     scope.stack.pop();
   }
 
-
-
   function staticCheckKey(identifierName: string, node: Node, scope: Scope) {
     const message = isAllowedKey(identifierName);
 
@@ -285,22 +301,163 @@ export default function pureFn(source: string) {
 
   // Note: because the this keyword is not allowed, class methods will be pretty useless.
   // Note: we could automate the use of $get, $set, $clear, etc.
-  
+
   const globalScope = new Scope();
 
   // Whitelist:
-  globalScope.addVariable("$get")
-  globalScope.addVariable("$set")
-  globalScope.addVariable("$clear")
-  globalScope.addVariable("Math")
-  globalScope.addVariable("Date")
-  globalScope.addVariable("Map")
-  globalScope.addVariable("Set")
-  globalScope.addVariable("JSON")
+  globalScope.addVariable("$keys");
+  globalScope.addVariable("$get");
+  globalScope.addVariable("$set");
+  globalScope.addVariable("$clear");
+  globalScope.addVariable("RegExp");
+  globalScope.addVariable("Math");
+  globalScope.addVariable("Date");
+  globalScope.addVariable("Map");
+  globalScope.addVariable("Set");
+  globalScope.addVariable("JSON");
 
   visit(sourceFile, globalScope);
 
-  return eval("(() => { return " + transpile(source) + " })()");
+  return eval(
+    `(() => {
+      let $$tick = 0;
+      const $$mark = () => {
+        $$tick++;
+        if ($$tick > 1000000) {
+          throw new Error('Excessive iterations!');
+        }
+      };
+      return ` +
+      transpileModule(source, {
+        transformers: {
+          before: [
+            (context) => {
+              function visit<T extends Node>(node: T) {
+                // Function calls can be recursive
+                // For loops can be infinite
+                // While loops can be infinite
+                // TODO: move locals/variables checking here, apparently function ast node already includes a list of locals & parameters
+
+                // TODO: define a replace body helper function with pseudo code: (body) => [$$()].concat(body)
+                if (isForStatement(node)) {
+                  const body = node.statement;
+
+                  return visitEachChild(node, (child) => {
+                    if (child == body) {
+                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
+                    }
+                    return visitEachChild(child, visit, context);
+                  }, context)
+                }
+                if (isForInStatement(node)) {
+                  const body = node.statement;
+
+                  return visitEachChild(node, (child) => {
+                    if (child == body) {
+                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
+                    }
+                    return visitEachChild(child, visit, context);
+                  }, context)
+                }
+                if (isForOfStatement(node)) {
+                  const body = node.statement;
+
+                  return visitEachChild(node, (child) => {
+                    if (child == body) {
+                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
+                    }
+                    return visitEachChild(child, visit, context);
+                  }, context)
+                }
+                if (isWhileStatement(node)) {
+                  const body = node.statement;
+
+                  return visitEachChild(node, (child) => {
+                    if (child == body) {
+                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
+                    }
+                    return visitEachChild(child, visit, context);
+                  }, context)
+                }
+                if (isDoStatement(node)) {
+                  const body = node.statement;
+
+                  return visitEachChild(node, (child) => {
+                    if (child == body) {
+                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
+                    }
+                    return visitEachChild(child, visit, context);
+                  }, context)
+                }
+
+                if (isFunctionDeclaration(node)) {
+                  const body = node.body;
+
+                  return visitEachChild(node, (child) => {
+                    if (child == body) {
+                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
+                    }
+                    return visitEachChild(child, visit, context);
+                  }, context)
+                }
+                if (isFunctionExpression(node)) {
+                  const body = node.body;
+
+                  return visitEachChild(node, (child) => {
+                    if (child == body) {
+                      return visitEachChild(replaceNodeBody(child as Block, true), visit, context);
+                    }
+                    return visitEachChild(child, visit, context);
+                  }, context)
+                }
+                if (isArrowFunction(node)) {
+                  const body = node.body;
+
+                  return visitEachChild(node, (child) => {
+                    if (child == body) {
+                      return visitEachChild(replaceNodeBody(child as ConciseBody, true), visit, context);
+                    }
+                    return visitEachChild(child, visit, context);
+                  }, context)
+                }
+                // if (isFunctionLike(node)) {
+                //   const body = (node as SignatureDeclaration).
+                //   return replaceNodeBody()
+                // }
+
+                return visitEachChild(node, (child) => visit(child), context);
+              }
+              return (sourceFile) => {
+                return visit(sourceFile);
+              };
+            },
+          ],
+        },
+      }).outputText +
+      " })()"
+  );
+
+  // return (...args: any): any => {};
+}
+
+function replaceNodeBody(node: Expression | Block, shouldReturn: boolean): Block {
+  const check = factory.createExpressionStatement(factory.createCallExpression(factory.createIdentifier('$$mark'), [], []));
+  if (node.kind === SyntaxKind.Block) {
+    const block = node as Block;
+    return factory.createBlock(
+      [check as Statement].concat(block.statements)
+    );
+  } else if (shouldReturn) {
+    const expression = node as Expression;
+    return factory.createBlock(
+      [check as Statement].concat(factory.createReturnStatement(expression))
+    );
+  } else {
+    const expression = node as Expression;
+    return factory.createBlock(
+      [check as Statement].concat(factory.createExpressionStatement(expression))
+    );
+  }
 }
 
 function getNodeName(nodeKind: SyntaxKind): string {
