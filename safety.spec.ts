@@ -129,6 +129,15 @@ describe('pure-function - exploit attempts', () => {
 
   testDangerousFunction(`new Function("return disallowedValue")`, disallowedValue)
 
+  // Fails to exploit, presumably because fn.apply.apply is not valid
+  // testDangerousFunction(`
+  //   () => {
+  //     const fn = () => {}
+
+  //     return fn.apply.apply("return 1")
+  //   }
+  // `, 1)
+
   // Fails to exploit
   // testDangerousFunction(`function () {
   //   while (let Function = true) { break; }

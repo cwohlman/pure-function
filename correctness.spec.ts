@@ -35,6 +35,11 @@ describe("pure-function - correctness", () => {
 
     expect(result()).toEqual(100 * 4 + 1 + 99);
   });
+  it("example in readme", () => {
+    const fn = pureFn("(a: string) => a.split(/\./).length - 1");
+
+    expect(fn('...')).toEqual(3);
+  });
   it("should support $get", () => {
     const fn = pureFn("(a, b) => $get(a, b)");
 
